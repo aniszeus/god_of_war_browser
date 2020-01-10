@@ -4,14 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
-	"math"
-	"net/http"
 
 	"github.com/go-gl/mathgl/mgl32"
-
-	"github.com/mogaika/god_of_war_browser/pack/wad"
-	"github.com/mogaika/god_of_war_browser/webutils"
 )
 
 func (m *Mesh) ExportObj(_w io.Writer, bones []mgl32.Mat4, materials []string) error {
@@ -27,26 +21,6 @@ func (m *Mesh) ExportObj(_w io.Writer, bones []mgl32.Mat4, materials []string) e
 	wi := func(format string, args ...interface{}) {
 		facesBuff.WriteString(fmt.Sprintf(format+"\n", args...))
 	}
-	// lastb := uint32(0)
-
-	minimalTextureV := 0.0
-	for _, part := range m.Parts {
-		for _, group := range part.Groups {
-			for _, object := range group.Objects {
-				for iPacket := range object.Packets {
-					for _, packet := range object.Packets[iPacket] {
-						if packet.Uvs.U != nil {
-							for _, v := range packet.Uvs.V {
-								minimalTextureV = math.Min(minimalTextureV, float64(v))
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	_ = math.Floor(-minimalTextureV)
 
 	for iPart, part := range m.Parts {
 		for iGroup, group := range part.Groups {
@@ -112,13 +86,4 @@ func (m *Mesh) ExportObj(_w io.Writer, bones []mgl32.Mat4, materials []string) e
 	_w.Write(facesBuff.Bytes())
 
 	return nil
-}
-
-func (mesh *Mesh) HttpAction(wrsrc *wad.WadNodeRsrc, w http.ResponseWriter, r *http.Request, action string) {
-	switch action {
-	case "obj":
-		var buf bytes.Buffer
-		log.Printf("Error when exporting mesh: %v", mesh.ExportObj(&buf, nil, nil))
-		webutils.WriteFile(w, bytes.NewReader(buf.Bytes()), wrsrc.Tag.Name+".obj")
-	}
 }
