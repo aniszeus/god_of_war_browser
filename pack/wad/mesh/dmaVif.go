@@ -151,9 +151,9 @@ func (state *MeshParserState) ToPacket(exlog *utils.Logger, debugPos uint32) (*P
 		packet.Norms.Z = make([]float32, normcnt)
 		for i := range packet.Norms.X {
 			bp := i * 3
-			packet.Norms.X[i] = float32(int8(state.Norm[bp])) / 100.0
-			packet.Norms.Y[i] = float32(int8(state.Norm[bp+1])) / 100.0
-			packet.Norms.Z[i] = float32(int8(state.Norm[bp+2])) / 100.0
+			packet.Norms.X[i] = float32(int8(state.Norm[bp])) / 127.0
+			packet.Norms.Y[i] = float32(int8(state.Norm[bp+1])) / 127.0
+			packet.Norms.Z[i] = float32(int8(state.Norm[bp+2])) / 127.0
 		}
 	}
 

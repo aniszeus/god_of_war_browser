@@ -44,12 +44,12 @@ func (cec *ColladaExportContext) exportObject(ceco *ColladaExportObject) error {
 	rgba := make([]float32, 0)
 	normals := make([]float32, 0)
 
+	haveNorm := o.Packets[0][0].Norms.X != nil
+	haveRgba := o.Packets[0][0].Blend.R != nil
+
 	// first extract pos, color, norm
 	for iPacket := range o.Packets[0] {
 		packet := o.Packets[0][iPacket]
-
-		haveNorm := packet.Norms.X != nil
-		haveRgba := packet.Blend.R != nil
 
 		for iVertex := range packet.Trias.X {
 			if !packet.Trias.Skip[iVertex] {
@@ -83,7 +83,7 @@ func (cec *ColladaExportContext) exportObject(ceco *ColladaExportObject) error {
 	sourcePosition := &collada.Source{}
 	sourcePosition.Id = collada.Id(ceco.GeometryId + "-positions")
 	sourcePosition.FloatArray = &collada.FloatArray{}
-	sourcePosition.FloatArray.V = colexpu.Floats32ToString(vertices)
+	sourcePosition.FloatArray.V = colexpu.Floats32ToString(vertices, 1)
 	sourcePosition.FloatArray.Count = len(vertices)
 	sourcePosition.FloatArray.Id = sourcePosition.Id + "-array"
 	sourcePosition.TechniqueCommon.XML = colexpu.CreateAccessor(
@@ -92,23 +92,49 @@ func (cec *ColladaExportContext) exportObject(ceco *ColladaExportObject) error {
 
 	cm.Source = append(cm.Source, sourcePosition)
 
+	sourceNormal := &collada.Source{}
+	if haveNorm {
+		sourceNormal.Id = collada.Id(ceco.GeometryId + "-normals")
+		sourceNormal.FloatArray = &collada.FloatArray{}
+		sourceNormal.FloatArray.V = colexpu.Floats32ToString(normals, 1)
+		sourceNormal.FloatArray.Count = len(normals)
+		sourceNormal.FloatArray.Id = sourceNormal.Id + "-array"
+		sourceNormal.TechniqueCommon.XML = colexpu.CreateAccessor(
+			len(normals)/3, 0, "#"+string(sourceNormal.FloatArray.Id), 3,
+			"X", "float", "Y", "float", "Z", "float")
+
+		cm.Source = append(cm.Source, sourceNormal)
+	}
+
 	cm.Vertices.Id = collada.Id(ceco.GeometryId + "-vertices")
-	cm.Vertices.Input = make([]*collada.InputUnshared, 1)
-	cm.Vertices.Input[0] = &collada.InputUnshared{
+	cm.Vertices.Input = make([]*collada.InputUnshared, 0)
+	cm.Vertices.Input = append(cm.Vertices.Input, &collada.InputUnshared{
 		Semantic: "POSITION",
 		Source:   collada.Uri("#" + sourcePosition.Id),
-	}
+	})
 
 	cmTriangles := &collada.Triangles{}
 	cmTriangles.Count = len(indexes) / 3
-	cmTriangles.Input = make([]*collada.InputShared, 1)
-	cmTriangles.Input[0] = &collada.InputShared{
+	cmTriangles.Input = make([]*collada.InputShared, 0)
+	cmTriangles.Input = append(cmTriangles.Input, &collada.InputShared{
 		Semantic: "VERTEX",
 		Source:   collada.Uri("#" + cm.Vertices.Id),
-	}
-	cmTriangles.P = &collada.P{}
-	cmTriangles.P.V = colexpu.IntsToString(indexes)
+	})
 
+	trianglesInputOffset := uint(1)
+
+	if haveNorm {
+		cmTriangles.Input = append(cmTriangles.Input, &collada.InputShared{
+			Semantic: "NORMAL",
+			Source:   collada.Uri("#" + sourceNormal.Id),
+			Offset:   trianglesInputOffset,
+		})
+
+		trianglesInputOffset++
+	}
+
+	cmTriangles.P = &collada.P{}
+	cmTriangles.P.V = colexpu.IntsToString(indexes, int(trianglesInputOffset))
 	cm.Triangles = []*collada.Triangles{cmTriangles}
 
 	ceco.ColladaGeometry = &collada.Geometry{}
@@ -120,7 +146,7 @@ func (cec *ColladaExportContext) exportObject(ceco *ColladaExportObject) error {
 
 func (m *Mesh) ColladaExport(wrsrc *wad.WadNodeRsrc, c *collada.Collada) (*ColladaExportContext, error) {
 	cec := &ColladaExportContext{
-		Prefix: wrsrc.Name(),
+		Prefix: fmt.Sprintf("%d_%s", wrsrc.Tag.Id, wrsrc.Tag.Name),
 		m:      m,
 	}
 
@@ -146,6 +172,8 @@ func (m *Mesh) ColladaExport(wrsrc *wad.WadNodeRsrc, c *collada.Collada) (*Colla
 						return nil, fmt.Errorf("Error parsing %v: %v", objecId, err)
 					}
 					cec.Objects = append(cec.Objects, ceco)
+
+					c.LibraryGeometries[0].Geometry = append(c.LibraryGeometries[0].Geometry, ceco.ColladaGeometry)
 				}
 			}
 		}
@@ -156,7 +184,7 @@ func (m *Mesh) ColladaExport(wrsrc *wad.WadNodeRsrc, c *collada.Collada) (*Colla
 }
 
 func (m *Mesh) ColladaExportDefault(wrsrc *wad.WadNodeRsrc) (*collada.Collada, error) {
-	c := colexpu.GetDefaultCollada()
+	c, scene := colexpu.GetDefaultColladaWithVisualScene()
 
 	cec, err := m.ColladaExport(wrsrc, c)
 	if err != nil {
@@ -180,8 +208,6 @@ func (m *Mesh) ColladaExportDefault(wrsrc *wad.WadNodeRsrc) (*collada.Collada, e
 		node.Scale[0].V = "1 1 1"
 	*/
 
-	geoms := make([]*collada.Geometry, 0)
-
 	node.InstanceGeometry = make([]*collada.InstanceGeometry, len(cec.Objects))
 	for iObject, object := range cec.Objects {
 		instance := &collada.InstanceGeometry{}
@@ -189,26 +215,10 @@ func (m *Mesh) ColladaExportDefault(wrsrc *wad.WadNodeRsrc) (*collada.Collada, e
 
 		instance.Url = collada.Uri("#" + object.GeometryId)
 
-		geoms = append(geoms, object.ColladaGeometry)
 		log.Printf("inserting %v", object.GeometryId)
 	}
 
-	scene := &collada.VisualScene{}
-	scene.Id = "default-scene"
-	scene.Name = "Default scene"
 	scene.Node = []*collada.Node{node}
-
-	c.LibraryGeometries = []*collada.LibraryGeometries{
-		&collada.LibraryGeometries{Geometry: geoms},
-	}
-	c.LibraryVisualScenes = []*collada.LibraryVisualScenes{
-		&collada.LibraryVisualScenes{
-			VisualScene: []*collada.VisualScene{scene},
-		},
-	}
-	c.Scene = &collada.Scene{}
-	c.Scene.InstanceVisualScene = &collada.InstanceVisualScene{}
-	c.Scene.InstanceVisualScene.Url = collada.Uri("#" + scene.Id)
 
 	utils.LogDump(c)
 

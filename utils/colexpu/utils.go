@@ -6,26 +6,32 @@ import (
 	"strings"
 )
 
-func Floats64ToString(a []float64) string {
+func Floats64ToString(a []float64, repeat int) string {
 	var b bytes.Buffer
 	for _, f := range a {
-		b.WriteString(fmt.Sprintf("%f ", f))
+		for r := 0; r < repeat; r++ {
+			b.WriteString(fmt.Sprintf("%f ", f))
+		}
 	}
 	return strings.TrimRight(b.String(), " ")
 }
 
-func Floats32ToString(a []float32) string {
+func Floats32ToString(a []float32, repeat int) string {
 	var b bytes.Buffer
 	for _, f := range a {
-		b.WriteString(fmt.Sprintf("%f ", f))
+		for r := 0; r < repeat; r++ {
+			b.WriteString(fmt.Sprintf("%f ", f))
+		}
 	}
 	return strings.TrimRight(b.String(), " ")
 }
 
-func IntsToString(a []int) string {
+func IntsToString(a []int, repeat int) string {
 	var b bytes.Buffer
 	for _, i := range a {
-		b.WriteString(fmt.Sprintf("%d ", i))
+		for r := 0; r < repeat; r++ {
+			b.WriteString(fmt.Sprintf("%d ", i))
+		}
 	}
 	return strings.TrimRight(b.String(), " ")
 }

@@ -443,8 +443,11 @@ function summaryLoadWadMesh(data, wad, nodeid) {
 
     let mdl = new grModel();
 
-    let dumplink = getActionLinkForWadNode(wad, nodeid, 'obj');
-    dataSummary.append($('<a class="center">').attr('href', dumplink).append('Download .obj (xyz+norm+uv)'));
+    let objlink = getActionLinkForWadNode(wad, nodeid, 'obj');
+    dataSummary.append($('<a class="center">').attr('href', objlink).append('Download .obj (xyz+norm+uv)'));
+    
+    let colladalink = getActionLinkForWadNode(wad, nodeid, 'collada');
+    dataSummary.append($('<a class="center">').attr('href', colladalink).append('Download .dae'));
 
     let table = loadMeshFromAjax(mdl, data, true);
     dataSummary.append(table);
